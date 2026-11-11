@@ -1,95 +1,116 @@
-"use client"
-import { useState } from 'react'
-import { createClient } from '@supabase/supabase-js'
-const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+"use client";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
 
-export default function Login(){
-  const [modo,setModo]=useState<'entrar'|'crear'>('entrar')
-  const [rol,setRol]=useState<'cliente'|'comercio'>('comercio')
-  const [nombre,setNombre]=useState('andres')
-  const [direccion,setDireccion]=useState('')
-  const [whatsapp,setWhatsapp]=useState('')
-  const [email,setEmail]=useState('')
-  const [password,setPassword]=useState('')
-  const [cargando,setCargando]=useState(false)
+export default function Login() {
+  const router = useRouter();
+  const [modo, setModo] = useState<"cliente" | "comercio" | "delivery">("cliente");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [mostrarRegistro, setMostrarRegistro] = useState(false);
+  const [nombre, setNombre] = useState("");
+  const [cargando, setCargando] = useState(false);
 
-  async function entrar(){
-    if(!email || !password){ alert('Poné mail y contraseña'); return }
-    setCargando(true)
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
-    setCargando(false)
-    if(error) return alert('Error al entrar: '+error.message)
-    // Si es comercio, lo llevo a SU perfil de comercio con sus datos guardados
-    // Si es cliente, lo llevo al inicio
-    if(rol==='comercio'){
-      window.location.href='/comercio'
-    } else {
-      window.location.href='/'
+  async function entrar() {
+    if (!email || !password) return alert("Completá mail y contraseña");
+    setCargando(true);
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) { setCargando(false); return alert("Error: " + error.message); }
+
+    const userId = data.user.id;
+
+    // DELIVERY - entra directo, no necesita tener comercio
+    if (modo === "delivery") {
+      router.push("/delivery");
+      return;
     }
+
+    // COMERCIO - busca si tiene comercio
+    if (modo === "comercio") {
+      const { data: comercio } = await supabase.from("comercios").select("*").eq("user_id", userId).maybeSingle();
+      if (!comercio) {
+        setCargando(false);
+        return alert("Este usuario no tiene comercio. Registrate como comercio primero.");
+      }
+      router.push("/comercio");
+      return;
+    }
+
+    // CLIENTE
+    router.push("/cliente");
   }
 
-  async function crear(){
-    if(!email || !password || !nombre){ alert('Completá nombre, mail y contraseña'); return }
-    setCargando(true)
-    const { data, error } = await supabase.auth.signUp({ email, password })
-    if(error){ setCargando(false); return alert('Error al crear: '+error.message) }
-    // Si es comercio, crearle SU fila en comercios con SU id de usuario
-    // Así cuando entra, ya tiene su perfil creado y no da error de FK
-    if(rol==='comercio' && data.user){
-const { error: e2 } = await supabase.from('comercios').upsert({        id: data.user.id,
-        nombre_comercio: nombre,
-        direccion: direccion,
-        whatsapp: whatsapp,
-        alias_mp: '',
-        abierto: false,
-      })
-      if(e2) alert('Cuenta creada, pero no se pudo crear el perfil del comercio: '+e2.message)
+  async function registrarse() {
+    if (!email || !password || !nombre) return alert("Completá nombre, mail y contraseña");
+    setCargando(true);
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { data: { nombre, rol: modo } }
+    });
+    if (error) { setCargando(false); return alert("Error: " + error.message); }
+
+    // Si se registra como comercio, le creamos el comercio automáticamente
+    if (modo === "comercio" && data.user) {
+      await supabase.from("comercios").insert({
+        user_id: data.user.id,
+        nombre: nombre,
+        email: email,
+        abierto: true,
+      });
     }
-    setCargando(false)
-    alert('¡Cuenta creada! Ahora entrá con tu mail y contraseña.')
-    setModo('entrar')
+
+    alert("¡Cuenta creada! Ahora iniciá sesión");
+    setMostrarRegistro(false);
+    setCargando(false);
   }
 
-  return(
-    <div style={{minHeight:'100vh', background:'#0A1931', display:'grid', placeItems:'center', padding:'16px', fontFamily:'system-ui'}}>
-      <div style={{width:'100%', maxWidth:'380px', background:'white', borderRadius:'20px', padding:'22px'}}>
-        <div style={{textAlign:'center', fontWeight:900, fontSize:'22px', fontStyle:'italic'}}>▲ JANDES</div>
-        <div style={{textAlign:'center', fontSize:'12px', color:'#64748b', marginTop:'4px'}}>Junín de los Andes</div>
+  return (
+    <div style={{ minHeight: "100vh", background: "#0f172a", display: "flex", justifyContent: "center", alignItems: "center", padding: 16 }}>
+      <div style={{ background: "white", borderRadius: 16, padding: 24, width: "100%", maxWidth: 400 }}>
+        <h1 style={{ textAlign: "center", fontSize: 28, fontWeight: 900, marginBottom: 4 }}>JANDES</h1>
+        <p style={{ textAlign: "center", color: "#666", marginBottom: 20, fontSize: 13 }}>Delivery Junín de los Andes</p>
 
-        {/* SOY CLIENTE / SOY COMERCIO */}
-        <div style={{display:'flex', gap:'6px', marginTop:'16px', background:'#f1f5f9', padding:'5px', borderRadius:'12px'}}>
-          <button onClick={()=>setRol('cliente')} style={{flex:1, padding:'10px', borderRadius:'9px', border:'none', fontWeight:900, fontSize:'13px', background: rol==='cliente'?'#0A1931':'transparent', color: rol==='cliente'?'white':'#64748b'}}>Soy Cliente</button>
-          <button onClick={()=>setRol('comercio')} style={{flex:1, padding:'10px', borderRadius:'9px', border:'none', fontWeight:900, fontSize:'13px', background: rol==='comercio'?'#0A1931':'transparent', color: rol==='comercio'?'white':'#64748b'}}>Soy Comercio</button>
+        {/* LOS 3 BOTONES */}
+        <div style={{ display: "flex", gap: 6, marginBottom: 20 }}>
+          <button onClick={() => setModo("cliente")} style={{ flex: 1, padding: "10px 4px", borderRadius: 10, border: "none", fontWeight: 700, fontSize: 12, cursor: "pointer", background: modo === "cliente" ? "#0f172a" : "#e5e7eb", color: modo === "cliente" ? "white" : "#333" }}>
+            Soy Cliente
+          </button>
+          <button onClick={() => setModo("comercio")} style={{ flex: 1, padding: "10px 4px", borderRadius: 10, border: "none", fontWeight: 700, fontSize: 12, cursor: "pointer", background: modo === "comercio" ? "#0f172a" : "#e5e7eb", color: modo === "comercio" ? "white" : "#333" }}>
+            Soy Comercio
+          </button>
+          <button onClick={() => setModo("delivery")} style={{ flex: 1, padding: "10px 4px", borderRadius: 10, border: "none", fontWeight: 700, fontSize: 12, cursor: "pointer", background: modo === "delivery" ? "#22c55e" : "#e5e7eb", color: modo === "delivery" ? "white" : "#333" }}>
+            Soy Delivery 🛵
+          </button>
         </div>
 
-        {/* ENTRAR / CREAR */}
-        <div style={{display:'flex', gap:'6px', marginTop:'10px'}}>
-          <button onClick={()=>setModo('entrar')} style={{flex:1, padding:'10px', borderRadius:'10px', border:'1px solid #e2e8f0', fontWeight:900, fontSize:'13px', background: modo==='entrar'?'#0A3CC1':'white', color: modo==='entrar'?'white':'#0A1931'}}>Ya tengo cuenta - Entrar</button>
-          <button onClick={()=>setModo('crear')} style={{flex:1, padding:'10px', borderRadius:'10px', border:'1px solid #e2e8f0', fontWeight:900, fontSize:'13px', background: modo==='crear'?'#0A3CC1':'white', color: modo==='crear'?'white':'#0A1931'}}>Crear cuenta</button>
-        </div>
+        {mostrarRegistro && (
+          <input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Tu nombre" style={{ width: "100%", padding: 12, borderRadius: 10, border: "1px solid #ddd", marginBottom: 10, color: "black" }} />
+        )}
+        <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Mail" type="email" style={{ width: "100%", padding: 12, borderRadius: 10, border: "1px solid #ddd", marginBottom: 10, color: "black" }} />
+        <input value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Contraseña" type="password" style={{ width: "100%", padding: 12, borderRadius: 10, border: "1px solid #ddd", marginBottom: 16, color: "black" }} />
 
-        {modo==='crear' && (
+        {!mostrarRegistro ? (
           <>
-            <input value={nombre} onChange={e=>setNombre(e.target.value)} placeholder={rol==='comercio' ? 'Nombre del comercio (ej: Kiosco Andres)' : 'Tu nombre'} style={inp}/>
-            {rol==='comercio' && <>
-              <input value={direccion} onChange={e=>setDireccion(e.target.value)} placeholder="Dirección del comercio" style={inp}/>
-              <input value={whatsapp} onChange={e=>setWhatsapp(e.target.value)} placeholder="WhatsApp" style={inp}/>
-            </>}
+            <button onClick={entrar} disabled={cargando} style={{ width: "100%", padding: 13, borderRadius: 10, border: "none", background: modo === "delivery" ? "#22c55e" : "#2563eb", color: "white", fontWeight: 800, cursor: "pointer" }}>
+              {cargando ? "Entrando..." : modo === "delivery" ? "Entrar como Delivery 🛵" : "Entrar a mi " + (modo === "comercio" ? "Comercio" : "Cuenta")}
+            </button>
+            <button onClick={() => setMostrarRegistro(true)} style={{ width: "100%", padding: 10, marginTop: 10, border: "none", background: "none", color: "#2563eb", fontWeight: 700, cursor: "pointer" }}>
+              Crear cuenta
+            </button>
+          </>
+        ) : (
+          <>
+            <button onClick={registrarse} disabled={cargando} style={{ width: "100%", padding: 13, borderRadius: 10, border: "none", background: "#16a34a", color: "white", fontWeight: 800, cursor: "pointer" }}>
+              {cargando ? "Creando..." : "Crear cuenta de " + modo}
+            </button>
+            <button onClick={() => setMostrarRegistro(false)} style={{ width: "100%", padding: 10, marginTop: 10, border: "none", background: "none", color: "#666", cursor: "pointer" }}>
+              Ya tengo cuenta
+            </button>
           </>
         )}
-
-        <input value={email} onChange={e=>setEmail(e.target.value)} placeholder="Mail (ej: andresdjx8@gmail.com)" style={inp}/>
-        <input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Contraseña" style={inp}/>
-
-        <button onClick={modo==='entrar' ? entrar : crear} disabled={cargando} style={{width:'100%', marginTop:'16px', padding:'14px', background:'#0A3CC1', color:'white', border:'none', borderRadius:'12px', fontWeight:900, fontSize:'15px'}}>
-          {cargando ? 'Cargando...' : modo==='entrar' ? (rol==='comercio' ? 'Entrar a mi Comercio' : 'Entrar') : 'Crear cuenta'}
-        </button>
-
-        {modo==='entrar' && <p style={{fontSize:'12px', color:'#64748b', textAlign:'center', marginTop:'10px'}}>Si ya te registraste, usá ENTRAR, no CREAR. Si apretás Crear con el mismo mail te dice "User already registered".</p>}
-        {modo==='crear' && rol==='comercio' && <p style={{fontSize:'12px', color:'#64748b', textAlign:'center', marginTop:'10px'}}>Al crear, ya te dejamos tu perfil de comercio creado con tu nombre, para que cuando entres vayas directo a tu perfil.</p>}
       </div>
     </div>
-  )
+  );
 }
-const inp={width:'100%', padding:'12px', borderRadius:'10px', border:'1.5px solid #cbd5e1', marginTop:'10px', background:'white', color:'#0A1931'} as any
-
