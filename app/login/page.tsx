@@ -8,8 +8,7 @@ const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env
 function LogoJandes() {
   return (
     <div style={{ textAlign: "center", marginBottom: 18 }}>
-      {/* MONTAÑITA */}
-      <svg width="88" height="56" viewBox="0 0 88 56" fill="none" style={{ display: "block", margin: "0 auto 4px" }}>
+      {/* MONTAÑITA */[STRIPPED 19 bytes]"88" height="56" viewBox="0 0 88 56" fill="none" style={{ display: "block", margin: "0 auto 4px" }}>
         <path d="M4 52 L28 16 L40 34 L52 10 L84 52 Z" fill="#2563eb" />
         <path d="M28 16 L34 24 L29 27 L25 23 L21 27 L22 28 L28 16 Z" fill="white" />
         <path d="M52 10 L58 19 L53 22 L49 18 L45 22 L46 23 L52 10 Z" fill="white" />
@@ -37,13 +36,17 @@ export default function Login() {
     setCargando(true);
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) { setCargando(false); return alert("Correo o clave incorrectos. Probá de nuevo."); }
+
     if (modo === "delivery") { router.push("/delivery"); return; }
+
     if (modo === "comercio") {
       const { data: comercio } = await supabase.from("comercios").select("*").eq("user_id", data.user.id).maybeSingle();
       if (!comercio) { setCargando(false); return alert("Este correo no tiene comercio. Registrate como comercio."); }
       router.push("/comercio"); return;
     }
-    router.push("/cliente");
+
+    // CLIENTE va a la HOME ( / ) que es donde vive el cliente
+    router.push("/");
   }
 
   async function registrarse() {
