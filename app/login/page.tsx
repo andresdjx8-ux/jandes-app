@@ -1,7 +1,9 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@supabase/supabase-js";
+
+const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
 export default function Login() {
   const router = useRouter();
@@ -20,13 +22,11 @@ export default function Login() {
 
     const userId = data.user.id;
 
-    // DELIVERY - entra directo, no necesita tener comercio
     if (modo === "delivery") {
       router.push("/delivery");
       return;
     }
 
-    // COMERCIO - busca si tiene comercio
     if (modo === "comercio") {
       const { data: comercio } = await supabase.from("comercios").select("*").eq("user_id", userId).maybeSingle();
       if (!comercio) {
@@ -37,7 +37,6 @@ export default function Login() {
       return;
     }
 
-    // CLIENTE
     router.push("/cliente");
   }
 
@@ -51,7 +50,6 @@ export default function Login() {
     });
     if (error) { setCargando(false); return alert("Error: " + error.message); }
 
-    // Si se registra como comercio, le creamos el comercio automáticamente
     if (modo === "comercio" && data.user) {
       await supabase.from("comercios").insert({
         user_id: data.user.id,
@@ -72,7 +70,6 @@ export default function Login() {
         <h1 style={{ textAlign: "center", fontSize: 28, fontWeight: 900, marginBottom: 4 }}>JANDES</h1>
         <p style={{ textAlign: "center", color: "#666", marginBottom: 20, fontSize: 13 }}>Delivery Junín de los Andes</p>
 
-        {/* LOS 3 BOTONES */}
         <div style={{ display: "flex", gap: 6, marginBottom: 20 }}>
           <button onClick={() => setModo("cliente")} style={{ flex: 1, padding: "10px 4px", borderRadius: 10, border: "none", fontWeight: 700, fontSize: 12, cursor: "pointer", background: modo === "cliente" ? "#0f172a" : "#e5e7eb", color: modo === "cliente" ? "white" : "#333" }}>
             Soy Cliente
